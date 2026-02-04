@@ -3,47 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LinguoFocus - Standalone Learner</title>
-    <!-- CSS is safe to load via CDN -->
+    <title>LinguoFocus - Native Learner</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        [v-cloak] { display: none; }
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.3s; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="bg-slate-100">
-    <div id="root"></div>
+<body class="bg-slate-100 min-h-screen flex flex-col select-none">
 
-    <!-- Essential Libraries -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <header class="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="bg-indigo-600 p-2 rounded-xl text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <h1 class="text-xl font-black text-indigo-950 uppercase tracking-tight">LinguoFocus</h1>
+        </div>
+        <nav class="flex bg-slate-100 p-1 rounded-xl">
+            <button id="btn-learn" class="px-6 py-2 rounded-lg font-bold transition-all bg-white shadow text-indigo-600">LEARN</button>
+            <button id="btn-quiz" class="px-6 py-2 rounded-lg font-bold transition-all text-slate-500">QUIZ</button>
+        </nav>
+    </header>
 
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useRef } = React;
-        
-        // Custom Icon handler to ensure Lucide works locally
-        const Icon = ({ name, size = 24, className = "" }) => {
-            const ref = useRef(null);
-            useEffect(() => {
-                if (window.lucide && ref.current) {
-                    const icon = window.lucide.icons[name];
-                    if (icon) {
-                        const svg = icon.toSvg({ 
-                            width: size, 
-                            height: size, 
-                            class: className,
-                            'stroke-width': 3
-                        });
-                        ref.current.innerHTML = svg;
-                    }
-                }
-            }, [name, size, className]);
-            return <span ref={ref} className="inline-flex items-center justify-center" />;
-        };
+    <main id="app-container" class="flex-grow p-6 flex flex-col items-center justify-center max-w-7xl mx-auto w-full">
+        <!-- Content injected by JS -->
+    </main>
 
+    <footer class="p-6 text-center text-[10px] font-bold text-slate-400 tracking-[0.3em] uppercase">
+        Arrows to Navigate • Spacebar to Replay Audio
+    </footer>
+
+    <script>
+        // Data
         const VOCABULARY = [
             { id: 1, word: "The Apple", translation: "La Manzana", image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6bcd6?w=800&auto=format&fit=crop", audio: "https://actions.google.com/sounds/v1/foley/crunchy_bite.ogg" },
             { id: 2, word: "The Ocean", translation: "El Océano", image: "https://images.unsplash.com/photo-1505118380757-91f5f45d8de4?w=800&auto=format&fit=crop", audio: "https://actions.google.com/sounds/v1/water/waves_crashing_on_rock.ogg" },
@@ -56,166 +49,176 @@
         const SUCCESS_SOUND = "https://actions.google.com/sounds/v1/buttons/button_interactive_notification.ogg";
         const ERROR_SOUND = "https://actions.google.com/sounds/v1/buttons/button_negative_feedback.ogg";
 
-        const App = () => {
-            const [view, setView] = useState('learn'); 
-            const [currentIndex, setCurrentIndex] = useState(0);
-            const [quizOptions, setQuizOptions] = useState([]);
-            const [targetWord, setTargetWord] = useState(null);
-            const [feedback, setFeedback] = useState(null); 
-            const [score, setScore] = useState(0);
+        // State
+        let currentView = 'learn';
+        let currentIndex = 0;
+        let score = 0;
+        let quizOptions = [];
+        let targetWord = null;
+        let isFeedbackActive = false;
 
-            const audioRef = useRef(new Audio());
-            const feedbackAudioRef = useRef(new Audio());
+        const mainAudio = new Audio();
+        const feedbackAudio = new Audio();
 
-            const playSound = useCallback((url) => {
-                if (!url) return;
-                audioRef.current.pause();
-                audioRef.current.src = url;
-                audioRef.current.play().catch(e => console.log("Audio play blocked", e));
-            }, []);
-
-            const playFeedback = useCallback((url) => {
-                feedbackAudioRef.current.pause();
-                feedbackAudioRef.current.src = url;
-                feedbackAudioRef.current.play().catch(e => console.log("Feedback blocked", e));
-            }, []);
-
-            const nextLearn = useCallback(() => {
-                const nextIdx = (currentIndex + 1) % VOCABULARY.length;
-                setCurrentIndex(nextIdx);
-                setFeedback(null);
-                playSound(VOCABULARY[nextIdx].audio);
-            }, [currentIndex, playSound]);
-
-            const prevLearn = useCallback(() => {
-                const prevIdx = (currentIndex - 1 + VOCABULARY.length) % VOCABULARY.length;
-                setCurrentIndex(prevIdx);
-                setFeedback(null);
-                playSound(VOCABULARY[prevIdx].audio);
-            }, [currentIndex, playSound]);
-
-            useEffect(() => {
-                const handleKeyDown = (e) => {
-                    if (view === 'learn') {
-                        if (e.key === 'ArrowRight') nextLearn();
-                        if (e.key === 'ArrowLeft') prevLearn();
-                    }
-                    if (e.key === ' ') {
-                        e.preventDefault();
-                        if (view === 'learn') playSound(VOCABULARY[currentIndex].audio);
-                        if (view === 'quiz' && targetWord) playSound(targetWord.audio);
-                    }
-                };
-                window.addEventListener('keydown', handleKeyDown);
-                return () => window.removeEventListener('keydown', handleKeyDown);
-            }, [view, currentIndex, targetWord, nextLearn, prevLearn, playSound]);
-
-            const setupQuiz = useCallback(() => {
-                const shuffled = [...VOCABULARY].sort(() => 0.5 - Math.random());
-                const selection = shuffled.slice(0, 6);
-                const target = selection[Math.floor(Math.random() * selection.length)];
-                setQuizOptions(selection);
-                setTargetWord(target);
-                setFeedback(null);
-                setTimeout(() => playSound(target.audio), 400);
-            }, [playSound]);
-
-            useEffect(() => {
-                if (view === 'quiz') setupQuiz();
-                if (view === 'learn') playSound(VOCABULARY[currentIndex].audio);
-            }, [view, setupQuiz]);
-
-            const handleQuizSelection = (item) => {
-                if (feedback) return;
-                if (item.id === targetWord.id) {
-                    setFeedback({ type: 'success' });
-                    setScore(s => s + 1);
-                    playFeedback(SUCCESS_SOUND);
-                    setTimeout(() => setupQuiz(), 1500);
-                } else {
-                    setFeedback({ type: 'error' });
-                    playFeedback(ERROR_SOUND);
-                    setTimeout(() => setFeedback(null), 1000);
-                }
-            };
-
-            const currentItem = VOCABULARY[currentIndex];
-
-            return (
-                <div className="min-h-screen flex flex-col select-none">
-                    <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-indigo-600 p-2 rounded-xl text-white">
-                                <Icon name="GraduationCap" size={24} />
+        // Components
+        function render() {
+            const container = document.getElementById('app-container');
+            container.innerHTML = '';
+            
+            if (currentView === 'learn') {
+                const item = VOCABULARY[currentIndex];
+                container.innerHTML = `
+                    <div class="w-full max-w-4xl flex flex-col items-center fade-in">
+                        <div class="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col md:flex-row w-full min-h-[450px]">
+                            <div class="md:w-3/5 bg-slate-200">
+                                <img src="${item.image}" class="w-full h-full object-cover">
                             </div>
-                            <h1 className="text-xl font-black text-indigo-950 uppercase tracking-tight">LinguoFocus</h1>
+                            <div class="md:w-2/5 p-10 flex flex-col justify-center items-center text-center">
+                                <h2 class="text-4xl font-black text-slate-900 mb-2">${item.word}</h2>
+                                <p class="text-xl text-indigo-500 font-bold mb-8 italic">${item.translation}</p>
+                                <button id="play-btn" class="w-20 h-20 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                </button>
+                            </div>
                         </div>
-                        <nav className="flex bg-slate-100 p-1 rounded-xl">
-                            <button onClick={() => setView('learn')} className={`px-6 py-2 rounded-lg font-bold transition-all ${view === 'learn' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>LEARN</button>
-                            <button onClick={() => setView('quiz')} className={`px-6 py-2 rounded-lg font-bold transition-all ${view === 'quiz' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>QUIZ</button>
-                        </nav>
-                    </header>
+                        <div class="mt-10 flex items-center gap-8">
+                            <button id="prev-btn" class="p-4 bg-white rounded-2xl border-2 border-slate-200 text-slate-400 hover:text-indigo-600 transition-all shadow-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            </button>
+                            <span class="font-black text-xl text-slate-400">${currentIndex + 1} / ${VOCABULARY.length}</span>
+                            <button id="next-btn" class="p-4 bg-indigo-600 rounded-2xl text-white shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('play-btn').onclick = () => playMainAudio(item.audio);
+                document.getElementById('prev-btn').onclick = prevLearn;
+                document.getElementById('next-btn').onclick = nextLearn;
+            } else {
+                container.innerHTML = `
+                    <div class="w-full max-w-5xl fade-in">
+                        <div class="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                            <h2 class="text-xl font-black uppercase text-slate-700">Listen & Find the Image</h2>
+                            <div class="text-right">
+                                <span class="text-xs font-bold text-slate-400 uppercase block">Total Score</span>
+                                <span class="text-3xl font-black text-indigo-600">${score}</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-center mb-10">
+                            <button id="quiz-audio-btn" class="flex items-center gap-4 bg-white border-4 border-indigo-600 text-indigo-600 p-8 rounded-3xl hover:bg-indigo-50 transition-all shadow-xl">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                <span class="text-xl font-black uppercase">Play Audio (Space)</span>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="quiz-grid"></div>
+                    </div>
+                `;
+                
+                const grid = document.getElementById('quiz-grid');
+                quizOptions.forEach(item => {
+                    const btn = document.createElement('button');
+                    btn.className = "relative aspect-video rounded-3xl overflow-hidden border-4 border-white hover:border-indigo-400 bg-white shadow-lg transition-all active:scale-95";
+                    btn.innerHTML = `<img src="${item.image}" class="w-full h-full object-cover">`;
+                    btn.onclick = () => handleQuizSelection(item, btn);
+                    grid.appendChild(btn);
+                });
 
-                    <main className="flex-grow p-6 flex flex-col items-center justify-center">
-                        {view === 'learn' ? (
-                            <div className="w-full max-w-4xl flex flex-col items-center">
-                                <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col md:flex-row w-full min-h-[450px]">
-                                    <div className="md:w-3/5 bg-slate-200">
-                                        <img src={currentItem.image} className="w-full h-full object-cover" key={currentItem.id} />
-                                    </div>
-                                    <div className="md:w-2/5 p-10 flex flex-col justify-center items-center text-center">
-                                        <h2 className="text-4xl font-black text-slate-900 mb-2">{currentItem.word}</h2>
-                                        <p className="text-xl text-indigo-500 font-bold mb-8 italic">{currentItem.translation}</p>
-                                        <button onClick={() => playSound(currentItem.audio)} className="w-20 h-20 bg-indigo-600 text-white rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-xl">
-                                            <Icon name="Volume2" size={32} />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="mt-10 flex items-center gap-8">
-                                    <button onClick={prevLearn} className="p-4 bg-white rounded-2xl border-2 border-slate-200 text-slate-400 hover:text-indigo-600"><Icon name="ChevronLeft" size={32} /></button>
-                                    <span className="font-black text-xl text-slate-400">{currentIndex + 1} / {VOCABULARY.length}</span>
-                                    <button onClick={nextLearn} className="p-4 bg-indigo-600 rounded-2xl text-white shadow-lg"><Icon name="ChevronRight" size={32} /></button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="w-full max-w-5xl">
-                                <div className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl shadow-sm">
-                                    <h2 className="text-xl font-black uppercase text-slate-700">Listen & Find the Image</h2>
-                                    <div className="text-right">
-                                        <span className="text-xs font-bold text-slate-400 uppercase block">Total Score</span>
-                                        <span className="text-3xl font-black text-indigo-600">{score}</span>
-                                    </div>
-                                </div>
-                                <div className="flex justify-center mb-10">
-                                    <button onClick={() => playSound(targetWord?.audio)} className="flex items-center gap-4 bg-white border-4 border-indigo-600 text-indigo-600 p-8 rounded-3xl hover:bg-indigo-50 transition-all shadow-xl">
-                                        <Icon name="Volume2" size={48} />
-                                        <span className="text-xl font-black uppercase">Play Audio (Space)</span>
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    {quizOptions.map((item) => (
-                                        <button key={item.id} onClick={() => handleQuizSelection(item)} className={`relative aspect-video rounded-3xl overflow-hidden border-4 transition-all ${feedback?.type === 'success' && item.id === targetWord.id ? 'border-green-500 scale-105 shadow-2xl' : feedback?.type === 'error' && item.id !== targetWord.id ? 'opacity-30 grayscale' : 'border-white hover:border-indigo-400 bg-white shadow-lg'}`}>
-                                            <img src={item.image} className="w-full h-full object-cover" />
-                                            {feedback?.type === 'success' && item.id === targetWord.id && (
-                                                <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center backdrop-blur-sm">
-                                                    <div className="bg-white p-4 rounded-full text-green-600 shadow-xl"><Icon name="CheckCircle2" size={48} /></div>
-                                                </div>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                    <footer className="p-6 text-center text-[10px] font-bold text-slate-400 tracking-[0.3em] uppercase">
-                        Left/Right Arrows to Navigate • Spacebar to Replay Audio
-                    </footer>
-                </div>
-            );
+                document.getElementById('quiz-audio-btn').onclick = () => playMainAudio(targetWord.audio);
+            }
+        }
+
+        // Logic
+        function playMainAudio(url) {
+            mainAudio.pause();
+            mainAudio.src = url;
+            mainAudio.play().catch(e => console.warn("Audio blocked"));
+        }
+
+        function playFeedbackAudio(url) {
+            feedbackAudio.pause();
+            feedbackAudio.src = url;
+            feedbackAudio.play().catch(e => console.warn("Audio blocked"));
+        }
+
+        function nextLearn() {
+            currentIndex = (currentIndex + 1) % VOCABULARY.length;
+            render();
+            playMainAudio(VOCABULARY[currentIndex].audio);
+        }
+
+        function prevLearn() {
+            currentIndex = (currentIndex - 1 + VOCABULARY.length) % VOCABULARY.length;
+            render();
+            playMainAudio(VOCABULARY[currentIndex].audio);
+        }
+
+        function setupQuiz() {
+            isFeedbackActive = false;
+            const shuffled = [...VOCABULARY].sort(() => 0.5 - Math.random());
+            quizOptions = shuffled.slice(0, 6);
+            targetWord = quizOptions[Math.floor(Math.random() * quizOptions.length)];
+            render();
+            setTimeout(() => playMainAudio(targetWord.audio), 400);
+        }
+
+        function handleQuizSelection(item, btn) {
+            if (isFeedbackActive) return;
+
+            if (item.id === targetWord.id) {
+                isFeedbackActive = true;
+                score++;
+                btn.classList.add('border-green-500', 'scale-105', 'z-10');
+                btn.innerHTML += `
+                    <div class="absolute inset-0 bg-green-500/20 flex items-center justify-center backdrop-blur-sm fade-in">
+                        <div class="bg-white p-4 rounded-full text-green-600 shadow-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                    </div>
+                `;
+                playFeedbackAudio(SUCCESS_SOUND);
+                setTimeout(setupQuiz, 1500);
+            } else {
+                isFeedbackActive = true;
+                btn.classList.add('opacity-30', 'grayscale');
+                playFeedbackAudio(ERROR_SOUND);
+                setTimeout(() => { isFeedbackActive = false; }, 800);
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('btn-learn').onclick = () => {
+            currentView = 'learn';
+            document.getElementById('btn-learn').classList.add('bg-white', 'shadow', 'text-indigo-600');
+            document.getElementById('btn-quiz').classList.remove('bg-white', 'shadow', 'text-indigo-600');
+            render();
+            playMainAudio(VOCABULARY[currentIndex].audio);
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        document.getElementById('btn-quiz').onclick = () => {
+            currentView = 'quiz';
+            document.getElementById('btn-quiz').classList.add('bg-white', 'shadow', 'text-indigo-600');
+            document.getElementById('btn-learn').classList.remove('bg-white', 'shadow', 'text-indigo-600');
+            setupQuiz();
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (currentView === 'learn') {
+                if (e.key === 'ArrowRight') nextLearn();
+                if (e.key === 'ArrowLeft') prevLearn();
+            }
+            if (e.key === ' ') {
+                e.preventDefault();
+                const audioUrl = currentView === 'learn' ? VOCABULARY[currentIndex].audio : targetWord.audio;
+                playMainAudio(audioUrl);
+            }
+        });
+
+        // Init
+        window.onload = () => {
+            render();
+            // Optional: Start first audio after a user interaction to satisfy browser policies
+        };
     </script>
 </body>
 </html>
